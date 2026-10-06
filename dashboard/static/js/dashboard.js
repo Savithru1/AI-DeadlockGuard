@@ -349,12 +349,12 @@ const SSEClient = (() => {
     return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   }
 
-  function _flashBanner(show) {
+  function _flashBanner(show, msg) {
     if (!bannerEl) return;
     if (show) {
+      if (msg) bannerEl.innerHTML = `<span>⚠️</span><span>${msg}</span>`;
       bannerEl.classList.add('show');
       clearTimeout(bannerTimer);
-      // Auto-hide after 8 seconds if no longer in deadlock
     } else {
       bannerTimer = setTimeout(() => bannerEl.classList.remove('show'), 3000);
     }
@@ -408,7 +408,11 @@ const SSEClient = (() => {
     // Deadlock banner
     const isDeadlock = state.monitor_status === 'deadlock' || risk >= 0.75;
     if (isDeadlock !== lastDeadlockState) {
-      _flashBanner(isDeadlock);
+      let bannerMsg = 'DEADLOCK DETECTED — Auto-resolution triggered';
+      if (state.action !== 'triggered_resolution') {
+        bannerMsg = 'DEADLOCK DETECTED — Auto-resolution DISABLED. Click "Resolve Deadlock" to break cycle.';
+      }
+      _flashBanner(isDeadlock, bannerMsg);
       lastDeadlockState = isDeadlock;
     }
   }
@@ -433,79 +437,177 @@ const SSEClient = (() => {
 
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   5. ACTION BUTTONS (CREATE DEADLOCK & RESOLVE)
+   5. ACTION BUTTONS (CREATE DEADLOCK, FREEZE, & RESOLVE)
    ═══════════════════════════════════════════════════════════════════════════ */
 function initActionButtons() {
-  const createBtn  = document.getElementById('createDeadlockBtn');
-  const resolveBtn = document.getElementById('resolveBtn');
-  const feedback   = document.getElementById('actionFeedback') || document.getElementById('resolveFeedback');
+  const createBtn        = document.getElementById('createDeadlockBtn');
+  const createFreezeBtn  = document.getElementById('createFreezeDeadlockBtn');
+  const resolveBtn       = document.getElementById('resolveBtn');
+  const toggle           = document.getElementById('autoResolveToggle');
+  const toggleStatusText = document.getElementById('autoResolveStatusText');
+  const createBtnText    = document.getElementById('createBtnText');
+  const feedback         = document.getElementById('actionFeedback');
 
-  if (createBtn) {
-    createBtn.addEventListener('click', async () => {
-      createBtn.disabled = true;
-      createBtn.classList.add('running');
-      createBtn.innerHTML = '<span>⏳</span><span>Injecting (14s)...</span>';
+  let activeTimer = null;
+
+  function resetButtons() {
+    if (activeTimer) clearInterval(activeTimer);
+    activeTimer = null;
+
+    if (createBtn) {
+      createBtn.disabled = false;
+      createBtn.classList.remove('running');
+      const isAuto = toggle ? toggle.checked : true;
+      createBtn.innerHTML = '<span>💥</span><span id="createBtnText">' + (isAuto ? 'Create Deadlock (Auto-Resolve)' : 'Create Deadlock (Auto-Resolve OFF)') + '</span>';
+    }
+    if (createFreezeBtn) {
+      createFreezeBtn.disabled = false;
+      createFreezeBtn.classList.remove('running');
+      createFreezeBtn.innerHTML = '<span>🔒</span><span>Create Deadlock (No Auto-Resolve)</span>';
+    }
+    if (resolveBtn) {
+      resolveBtn.disabled = false;
+    }
+  }
+
+  // Toggle listener
+  if (toggle) {
+    toggle.addEventListener('change', () => {
+      const isAuto = toggle.checked;
+      if (toggleStatusText) {
+        toggleStatusText.textContent = isAuto ? 'ENABLED' : 'DISABLED';
+        toggleStatusText.className = 'setting-pill ' + (isAuto ? 'on' : 'off');
+      }
+      const curTextEl = document.getElementById('createBtnText');
+      if (curTextEl) {
+        curTextEl.textContent = isAuto ? 'Create Deadlock (Auto-Resolve)' : 'Create Deadlock (Auto-Resolve OFF)';
+      }
       if (feedback) {
-        feedback.textContent = 'Contention initiated. Deadlock forming in 10-15s...';
-        feedback.className   = 'resolve-feedback';
+        feedback.textContent = isAuto
+          ? 'Auto-resolution enabled: deadlock will be automatically broken after 12s.'
+          : 'Auto-resolution disabled: deadlock will persist frozen until manually resolved.';
+        feedback.className = 'resolve-feedback';
+        setTimeout(() => { if (feedback.textContent.startsWith('Auto-resolution')) feedback.textContent = ''; }, 3500);
       }
-
-      try {
-        await fetch('/api/create-deadlock', { method: 'POST' });
-      } catch (e) {
-        console.error('Failed to trigger deadlock creation:', e);
-      }
-
-      // Live countdown over 14 seconds
-      let remaining = 14;
-      const timer = setInterval(() => {
-        remaining -= 1;
-        if (remaining > 5) {
-          createBtn.innerHTML = `<span>⏳</span><span>Contention Escalating (${remaining}s)...</span>`;
-        } else if (remaining > 2) {
-          createBtn.innerHTML = `<span>🚨</span><span>Deadlocked! Auto-resolving (${remaining}s)...</span>`;
-        } else if (remaining <= 0) {
-          clearInterval(timer);
-          createBtn.disabled = false;
-          createBtn.classList.remove('running');
-          createBtn.innerHTML = '<span>💥</span><span>Create Deadlock</span>';
-          if (feedback) {
-            feedback.textContent = '✓ Deadlock auto-detected and broken successfully!';
-            feedback.className   = 'resolve-feedback ok';
-            setTimeout(() => { if (feedback) feedback.textContent = ''; }, 4000);
-          }
-        }
-      }, 1000);
     });
   }
 
+  // Deadlock trigger function
+  async function triggerDeadlock(autoResolve) {
+    if (activeTimer) clearInterval(activeTimer);
+    if (createBtn) createBtn.disabled = true;
+    if (createFreezeBtn) createFreezeBtn.disabled = true;
+
+    const targetBtn = autoResolve ? createBtn : createFreezeBtn;
+    if (targetBtn) {
+      targetBtn.classList.add('running');
+      targetBtn.innerHTML = `<span>⏳</span><span>Injecting (${autoResolve ? 'Auto-Resolve' : 'Freeze'})...</span>`;
+    }
+
+    if (feedback) {
+      feedback.textContent = autoResolve
+        ? 'Injecting contention... Deadlock forming in 10-15s (will auto-resolve).'
+        : 'Injecting contention... Deadlock forming in 10-15s (Auto-resolve DISABLED — will stay frozen).';
+      feedback.className = 'resolve-feedback';
+    }
+
+    try {
+      await fetch('/api/create-deadlock', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ auto_resolve: autoResolve })
+      });
+    } catch (e) {
+      console.error('Failed to trigger deadlock creation:', e);
+    }
+
+    let remaining = 14;
+    activeTimer = setInterval(() => {
+      remaining -= 1;
+
+      if (remaining > 6) {
+        if (targetBtn) targetBtn.innerHTML = `<span>⏳</span><span>Contention Escalating (${remaining}s)...</span>`;
+      } else if (remaining > 2) {
+        if (autoResolve) {
+          if (targetBtn) targetBtn.innerHTML = `<span>🚨</span><span>Deadlocked! Auto-resolving (${remaining}s)...</span>`;
+        } else {
+          if (targetBtn) targetBtn.innerHTML = `<span>🔒</span><span>Deadlocked! Frozen (Auto-Resolve OFF)...</span>`;
+          if (feedback) {
+            feedback.textContent = '⚠️ System frozen in deadlock! Click "⚡ Resolve Deadlock" to break cycle.';
+            feedback.className = 'resolve-feedback err';
+          }
+        }
+      } else if (remaining <= 0) {
+        clearInterval(activeTimer);
+        activeTimer = null;
+
+        if (autoResolve) {
+          resetButtons();
+          if (feedback) {
+            feedback.textContent = '✓ Deadlock auto-detected & broken successfully!';
+            feedback.className = 'resolve-feedback ok';
+            setTimeout(() => { feedback.textContent = ''; }, 4000);
+          }
+        } else {
+          // Keep freeze button in frozen alert state until manual resolve is clicked!
+          if (createFreezeBtn) {
+            createFreezeBtn.innerHTML = '<span>🔒</span><span>Deadlocked (Awaiting Manual Resolve)</span>';
+          }
+          if (createBtn) createBtn.disabled = true;
+          if (feedback) {
+            feedback.textContent = '⚠️ Persistent Deadlock Active! Click "⚡ Resolve Deadlock" to restore system.';
+            feedback.className = 'resolve-feedback err';
+          }
+        }
+      }
+    }, 1000);
+  }
+
+  // Button 1: Deadlock with Auto-Resolve (or follows toggle)
+  if (createBtn) {
+    createBtn.addEventListener('click', () => {
+      const isAuto = toggle ? toggle.checked : true;
+      triggerDeadlock(isAuto);
+    });
+  }
+
+  // Button 2: Deadlock WITHOUT Auto-Resolve (Always Freeze)
+  if (createFreezeBtn) {
+    createFreezeBtn.addEventListener('click', () => {
+      triggerDeadlock(false);
+    });
+  }
+
+  // Button 3: Manual Resolve
   if (resolveBtn) {
     resolveBtn.addEventListener('click', async () => {
       resolveBtn.disabled = true;
       if (feedback) {
-        feedback.textContent = 'Sending manual resolve signal…';
-        feedback.className   = 'resolve-feedback';
+        feedback.textContent = 'Sending manual resolve signal (SIGKILL to victim)…';
+        feedback.className = 'resolve-feedback';
       }
       try {
         const res  = await fetch('/api/resolve', { method: 'POST' });
         const data = await res.json();
-        if (data.ok && feedback) {
-          feedback.textContent = '✓ Resolve signal sent (cycle broken).';
-          feedback.className   = 'resolve-feedback ok';
+        if (data.ok) {
+          resetButtons();
+          if (feedback) {
+            feedback.textContent = '✓ Resolve signal sent! Circular wait broken and execution restored.';
+            feedback.className = 'resolve-feedback ok';
+            setTimeout(() => { if (feedback) feedback.textContent = ''; }, 4000);
+          }
         } else if (feedback) {
           feedback.textContent = `✗ ${data.error}`;
-          feedback.className   = 'resolve-feedback err';
+          feedback.className = 'resolve-feedback err';
+          setTimeout(() => { resolveBtn.disabled = false; }, 2000);
         }
       } catch (e) {
         if (feedback) {
           feedback.textContent = '✗ Network error.';
-          feedback.className   = 'resolve-feedback err';
+          feedback.className = 'resolve-feedback err';
         }
+        setTimeout(() => { resolveBtn.disabled = false; }, 2000);
       }
-      setTimeout(() => {
-        resolveBtn.disabled = false;
-        if (feedback) feedback.textContent = '';
-      }, 3500);
     });
   }
 }

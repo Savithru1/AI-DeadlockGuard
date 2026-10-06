@@ -107,12 +107,21 @@ def api_resolve():
 
 @app.route('/api/create-deadlock', methods=['POST'])
 def api_create_deadlock():
-    """Trigger a realistic deadlock injection sequence spanning 10-15 seconds."""
+    """Trigger a realistic deadlock injection sequence with optional auto-resolve."""
     try:
+        data = request.get_json(silent=True) or {}
+        auto_resolve = data.get('auto_resolve', True)
+
+        payload = {
+            'timestamp': time.time(),
+            'auto_resolve': bool(auto_resolve)
+        }
         os.makedirs(os.path.dirname(INJECT_PATH), exist_ok=True)
-        with open(INJECT_PATH, 'w') as f:
-            f.write(str(time.time()))
-        return jsonify({'ok': True, 'message': 'Deadlock creation sequence started. Will deadlock in 10-15 seconds.'})
+        with open(INJECT_PATH, 'w', encoding='utf-8') as f:
+            json.dump(payload, f)
+
+        msg = 'Deadlock creation started (Auto-resolve ENABLED).' if auto_resolve else 'Deadlock creation started (Auto-resolve DISABLED — system will stay frozen).'
+        return jsonify({'ok': True, 'message': msg, 'auto_resolve': auto_resolve})
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
 

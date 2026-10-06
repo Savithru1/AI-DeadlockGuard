@@ -109,18 +109,45 @@
       </div>
     </div>
 
-    <!-- Action Controls -->
-    <div class="action-buttons">
-      <button id="createDeadlockBtn" class="create-btn" title="Simulates a multi-thread contention scenario that forms a circular wait deadlock in 10-15s and auto-resolves">
-        <span>💥</span>
-        <span>Create Deadlock</span>
-      </button>
-      <button id="resolveBtn" class="resolve-btn" title="Manually breaks any active deadlock cycle via SIGKILL">
-        <span>⚡</span>
-        <span>Resolve Deadlock</span>
-      </button>
+    <!-- Action Controls Card -->
+    <div class="card action-card">
+      <div class="card-header" style="margin-bottom: 0.4rem;">
+        <div class="card-title" style="margin-bottom:0">Simulation Controls</div>
+      </div>
+
+      <!-- Auto-Resolve Option Toggle -->
+      <div class="auto-resolve-setting" title="When ON, AI & monitor auto-terminate the deadlock victim. When OFF, deadlock stays frozen until manually resolved.">
+        <div class="setting-text">
+          <span class="setting-name">Auto-Resolution</span>
+          <span id="autoResolveStatusText" class="setting-pill on">ENABLED</span>
+        </div>
+        <label class="switch-toggle" title="Toggle automatic deadlock resolution on/off">
+          <input type="checkbox" id="autoResolveToggle" checked>
+          <span class="switch-slider"></span>
+        </label>
+      </div>
+
+      <div class="action-buttons">
+        <!-- Button 1: Deadlock with Auto-Resolve -->
+        <button id="createDeadlockBtn" class="create-btn" title="Creates a circular wait deadlock that auto-resolves in 10-15 seconds">
+          <span>💥</span>
+          <span id="createBtnText">Create Deadlock (Auto-Resolve)</span>
+        </button>
+
+        <!-- Button 2: Deadlock WITHOUT Auto-Resolve (Permanent Freeze) -->
+        <button id="createFreezeDeadlockBtn" class="freeze-btn" title="Creates a circular wait deadlock with NO auto-resolution — system stays frozen until you click Resolve Deadlock">
+          <span>🔒</span>
+          <span>Create Deadlock (No Auto-Resolve)</span>
+        </button>
+
+        <!-- Button 3: Manual Resolve -->
+        <button id="resolveBtn" class="resolve-btn" title="Manually breaks any active deadlock cycle via SIGKILL">
+          <span>⚡</span>
+          <span>Resolve Deadlock</span>
+        </button>
+      </div>
+      <div id="actionFeedback" class="resolve-feedback"></div>
     </div>
-    <div id="actionFeedback" class="resolve-feedback"></div>
 
   </aside>
 

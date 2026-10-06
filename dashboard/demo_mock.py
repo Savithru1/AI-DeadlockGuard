@@ -78,19 +78,21 @@ def check_manual_resolve():
             return True
     return False
 
-def run_injected_deadlock_sequence():
+def run_injected_deadlock_sequence(auto_resolve=True):
     """
-    Executes a 12-14 second realistic deadlock scenario:
+    Executes a realistic deadlock scenario:
     - 0-4s: Safe normal baseline
     - 4-8s: Rapid contention spike (Thread A requests Mutex B)
-    - 8-11s: Circular wait forms! Deadlock detected (Thread B requests Mutex A)
-    - 11-14s: Auto-resolution breaks the deadlock cycle
+    - 8s+: Circular wait forms! Deadlock detected (Thread B requests Mutex A)
+    - If auto_resolve=True: Auto-resolution breaks the deadlock cycle at 12s
+    - If auto_resolve=False: System stays frozen in deadlock until manual resolve clicked!
     """
-    print("\n[demo_mock] [INJECT] INJECTING DEADLOCK SEQUENCE (10-15s auto-resolve)...")
+    mode_str = "auto-resolve ENABLED" if auto_resolve else "auto-resolve DISABLED (Freeze)"
+    print(f"\n[demo_mock] [INJECT] INJECTING DEADLOCK SEQUENCE ({mode_str})...")
     pid_a = 4101
     pid_b = 4102
 
-    append_log('MONITOR', f'Scenario initiated: Dining Philosophers 2-Thread Lock contention')
+    append_log('MONITOR', f'Scenario initiated: Dining Philosophers 2-Thread Contention [{mode_str}]')
     append_log('HOLD', f'pid={pid_a} resource=fork_0')
     append_log('HOLD', f'pid={pid_b} resource=fork_1')
 
@@ -101,9 +103,11 @@ def run_injected_deadlock_sequence():
     while True:
         elapsed = time.time() - start
 
-        # Check if user clicked manual resolve
-        if check_manual_resolve() and not resolved:
-            append_log('RESOLVE', f'Manual resolution signal received — killing waiting processes')
+        # Check if user clicked manual resolve at any time
+        if check_manual_resolve():
+            append_log('RESOLVE', f'Manual resolution signal received — terminating cycle victim pid={pid_b}')
+            append_log('RELEASE', f'resource=fork_1 released by kernel')
+            append_log('HOLD', f'pid={pid_a} acquired resource=fork_1, thread resumed')
             resolved = True
             break
 
@@ -134,49 +138,48 @@ def run_injected_deadlock_sequence():
                 action='none'
             )
 
-        # Stage 3: 8 to 11 seconds — Circular wait completes! Deadlock!
-        elif elapsed < 11.5:
+        # Stage 3: 8 seconds and beyond — Circular wait completes! Deadlock!
+        else:
             if not deadlock_detected:
                 deadlock_detected = True
                 append_log('WAIT', f'pid={pid_b} resource=fork_0 (held by pid={pid_a})')
                 append_log('DEADLOCK', f'Cycle detected: [pid {pid_a} -> fork_1 -> pid {pid_b} -> fork_0 -> pid {pid_a}]')
-                append_log('DEADLOCK', f'AI Ensemble score: 94.2% — Imminent deadlock threshold crossed!')
+                if auto_resolve:
+                    append_log('DEADLOCK', f'AI Ensemble score: 94.2% — Imminent deadlock threshold crossed! Auto-resolve armed.')
+                else:
+                    append_log('DEADLOCK', f'AI Ensemble score: 94.2% — Auto-resolution DISABLED. Threads {pid_a} & {pid_b} permanently frozen!')
 
+            action_type = 'triggered_resolution' if auto_resolve else 'none'
             write_status(
                 blocked=2,
                 wg=1.15,
                 edges=4,
                 risk=0.94,
                 status='deadlock',
-                action='triggered_resolution'
+                action=action_type
             )
 
-        # Stage 4: 11.5 to 14 seconds — Auto-resolution executed!
-        elif elapsed < 14.0:
-            if not resolved:
+            # If auto_resolve is enabled, trigger automatic resolution after 12s
+            if auto_resolve and elapsed >= 12.0:
                 resolved = True
                 append_log('RESOLVE', f'Auto-detector selected victim pid={pid_b} (cycle breaker)')
                 append_log('RESOLVE', f'SIGKILL sent to victim pid={pid_b} — WFG cycle broken')
                 append_log('RELEASE', f'resource=fork_1 released by kernel')
                 append_log('HOLD', f'pid={pid_a} acquired resource=fork_1, thread resumed')
+                break
 
-            write_status(
-                blocked=0,
-                wg=0.03,
-                edges=1,
-                risk=0.08,
-                status='running',
-                action='none'
-            )
-        else:
-            break
+            # If auto_resolve is disabled, remain in deadlock state until manual resolve!
+            if not auto_resolve:
+                # Every 4 seconds in deadlock, log that threads remain frozen
+                if int(elapsed) % 4 == 0 and int(elapsed * 2) % 2 == 0:
+                    append_log('DEADLOCK', f'Processes [{pid_a}, {pid_b}] remain locked in circular wait. Awaiting manual resolution...')
 
         time.sleep(0.4)
 
     # Wrap up resolution
     write_status(blocked=0, wg=0.0, edges=0, risk=0.05, status='running', action='none')
     append_log('MONITOR', f'System state restored: Normal execution active.')
-    print("[demo_mock] [RESOLVED] Deadlock successfully auto-detected and resolved!\n")
+    print("[demo_mock] [RESOLVED] System restored to normal state.\n")
 
 def main():
     print("=" * 60)
@@ -192,11 +195,21 @@ def main():
     while True:
         # Check if GUI requested a deadlock injection
         if os.path.exists(INJECT_TRIGGER_PATH):
+            auto_resolve = True
             try:
+                with open(INJECT_TRIGGER_PATH, 'r', encoding='utf-8') as f:
+                    content = f.read().strip()
+                    if content:
+                        try:
+                            cfg = json.loads(content)
+                            auto_resolve = bool(cfg.get('auto_resolve', True))
+                        except:
+                            if 'false' in content.lower():
+                                auto_resolve = False
                 os.remove(INJECT_TRIGGER_PATH)
             except:
                 pass
-            run_injected_deadlock_sequence()
+            run_injected_deadlock_sequence(auto_resolve=auto_resolve)
             t = 0
             continue
 
