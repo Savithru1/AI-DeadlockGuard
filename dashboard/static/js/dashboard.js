@@ -42,58 +42,113 @@ const ThemeManager = (() => {
 
 /* ═══════════════════════════════════════════════════════════════════════════
    2. RISK GAUGE
-   SVG arc: circumference = 2π × r  (r = 90)
-   We use 75% of the full circle so it looks like a classic speedometer.
+   Mathematically exact 240° horseshoe arc (starts at 150°, sweeps to 390°).
+   Uses pathLength="100" so stroke-dashoffset = 100 - (pct * 100) exactly.
+   Includes animated needle tip bead and smooth numerical counter.
    ═══════════════════════════════════════════════════════════════════════════ */
 const RiskGauge = (() => {
-  const RADIUS        = 90;
-  const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
-  const ARC_FRACTION  = 0.75; // use 75% of full circle
-  const ARC_LENGTH    = CIRCUMFERENCE * ARC_FRACTION;
+  let arcEl, needleEl, scoreEl, statusEl, statusTextEl;
+  let currentScore = 0;
+  let animFrameId = null;
 
-  let arcEl, scoreEl, statusEl;
+  // Arc Center: (120, 115), Radius: 82, Span: 150° to 390° (240° total)
+  const CX = 120;
+  const CY = 115;
+  const R  = 82;
+
+  function _calcNeedle(pct) {
+    const angle = 150 + pct * 240;
+    const rad   = angle * (Math.PI / 180);
+    return {
+      x: CX + R * Math.cos(rad),
+      y: CY + R * Math.sin(rad)
+    };
+  }
 
   function _colorForRisk(score) {
-    if (score < 0.4) return '#10b981';          // green
-    if (score < 0.65) return '#f59e0b';          // amber
-    if (score < 0.8) return '#f97316';           // orange
-    return '#ef4444';                             // red
+    if (score < 0.40) return '#10b981'; // emerald green
+    if (score < 0.75) return '#f59e0b'; // amber warning
+    return '#ef4444';                   // crimson danger
   }
 
   function _statusForRisk(score) {
-    if (score < 0.4) return { label: 'SAFE',     cls: 'safe'    };
-    if (score < 0.75) return { label: 'WARNING',  cls: 'warning' };
-    return                   { label: 'DEADLOCK', cls: 'danger'  };
+    if (score < 0.40) return { label: 'SAFE', cls: 'safe' };
+    if (score < 0.75) return { label: 'HIGH CONTENTION', cls: 'warning' };
+    return { label: 'DEADLOCK DETECTED', cls: 'danger' };
   }
 
   function init() {
-    arcEl    = document.getElementById('gaugeArc');
-    scoreEl  = document.getElementById('gaugeScore');
-    statusEl = document.getElementById('gaugeStatus');
-
-    // Set the arc total dasharray
-    arcEl.setAttribute('stroke-dasharray', `${ARC_LENGTH} ${CIRCUMFERENCE - ARC_LENGTH}`);
-    // Start rotated so arc begins at bottom-left (220°)
-    arcEl.parentElement.style.transform = 'rotate(135deg)';
+    arcEl        = document.getElementById('gaugeArc');
+    needleEl     = document.getElementById('gaugeNeedle');
+    scoreEl      = document.getElementById('gaugeScore');
+    statusEl     = document.getElementById('gaugeStatus');
+    statusTextEl = document.getElementById('gaugeStatusText');
 
     update(0);
   }
 
+  function _animateScore(fromVal, toVal, color) {
+    if (animFrameId) cancelAnimationFrame(animFrameId);
+    if (!scoreEl) return;
+    const start = performance.now();
+    const duration = 250; // ms
+
+    function step(now) {
+      const progress = Math.min((now - start) / duration, 1);
+      const val = Math.round(fromVal + (toVal - fromVal) * progress);
+      scoreEl.textContent = val;
+      scoreEl.style.color = color;
+      const pctEl = scoreEl.parentElement?.querySelector('.gauge-percent');
+      if (pctEl) pctEl.style.color = color;
+
+      if (progress < 1) {
+        animFrameId = requestAnimationFrame(step);
+      }
+    }
+    animFrameId = requestAnimationFrame(step);
+  }
+
   function update(score) {
-    // score: 0..1 float
-    const pct    = Math.min(Math.max(score, 0), 1);
-    const offset = ARC_LENGTH * (1 - pct);
-    const color  = _colorForRisk(pct);
-    const status = _statusForRisk(pct);
+    const clamped = Math.min(Math.max(score, 0), 1);
+    const pct100  = clamped * 100;
+    const color   = _colorForRisk(clamped);
+    const status  = _statusForRisk(clamped);
 
-    arcEl.style.strokeDashoffset = offset;
-    arcEl.style.stroke = color;
+    // 1. Arc stroke-dashoffset (pathLength="100")
+    // When clamped = 0.08 (8%): offset = 92 (precisely 8% stroked from bottom-left!)
+    const offset = Math.max(0, Math.min(100, 100 - pct100));
+    if (arcEl) {
+      arcEl.style.strokeDashoffset = offset.toFixed(2);
+      arcEl.style.stroke = color;
 
-    scoreEl.textContent = `${Math.round(pct * 100)}%`;
-    scoreEl.style.color = color;
+      if (clamped >= 0.75) {
+        arcEl.style.filter = 'drop-shadow(0 0 10px rgba(239, 68, 68, 0.75))';
+      } else if (clamped >= 0.40) {
+        arcEl.style.filter = 'drop-shadow(0 0 7px rgba(245, 158, 11, 0.55))';
+      } else {
+        arcEl.style.filter = 'drop-shadow(0 0 5px rgba(16, 185, 129, 0.4))';
+      }
+    }
 
-    statusEl.textContent = status.label;
-    statusEl.className = `gauge-status ${status.cls}`;
+    // 2. Needle tip bead coordinates
+    if (needleEl) {
+      const pos = _calcNeedle(clamped);
+      needleEl.setAttribute('cx', pos.x.toFixed(2));
+      needleEl.setAttribute('cy', pos.y.toFixed(2));
+      needleEl.style.stroke = color;
+      needleEl.style.filter = `drop-shadow(0 0 4px ${color})`;
+    }
+
+    // 3. Smooth numerical counter
+    const oldScore = currentScore;
+    currentScore = pct100;
+    _animateScore(oldScore, pct100, color);
+
+    // 4. Status badge
+    if (statusEl && statusTextEl) {
+      statusTextEl.textContent = status.label;
+      statusEl.className = `gauge-status ${status.cls}`;
+    }
   }
 
   return { init, update };

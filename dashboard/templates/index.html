@@ -45,30 +45,48 @@
 
     <!-- Risk Gauge Card -->
     <div class="card gauge-card">
-      <div class="card-title">AI Risk Meter</div>
+      <div class="card-header">
+        <div class="card-title">AI Deadlock Risk</div>
+        <div class="gauge-model-tag">Ensemble RF+SVM+XGB</div>
+      </div>
 
       <div class="gauge-wrapper">
-        <svg class="gauge-svg" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-          <!-- Background track -->
-          <circle class="gauge-bg"
-            cx="100" cy="100" r="90"
-            stroke-dasharray="424.1 141.4"
-            style="transform-origin:center; transform:rotate(135deg)" />
-          <!-- Animated arc -->
-          <circle id="gaugeArc" class="gauge-arc"
-            cx="100" cy="100" r="90"
-            stroke="#10b981"
-            stroke-dasharray="0 565.5"
-            stroke-dashoffset="0" />
+        <svg class="gauge-svg" viewBox="0 0 240 190" xmlns="http://www.w3.org/2000/svg">
+          <!-- Background track (full 240° horseshoe arc) -->
+          <path class="gauge-track" d="M 48.99 156 A 82 82 0 1 1 191.01 156" />
+
+          <!-- Inner subtle scale reference ring -->
+          <path class="gauge-ticks" d="M 61.11 149 A 68 68 0 1 1 178.89 149" />
+
+          <!-- Dynamic Active Arc (pathLength 100 for exact % math) -->
+          <path id="gaugeArc" class="gauge-arc"
+            d="M 48.99 156 A 82 82 0 1 1 191.01 156"
+            pathLength="100"
+            stroke-dasharray="100"
+            stroke-dashoffset="100" />
+
+          <!-- Glowing Needle Tip Bead -->
+          <circle id="gaugeNeedle" class="gauge-needle" cx="48.99" cy="156" r="5.5" />
+
+          <!-- Scale Reference Labels -->
+          <text x="36" y="176" text-anchor="middle" class="gauge-scale-text">0%</text>
+          <text x="120" y="24" text-anchor="middle" class="gauge-scale-text">50%</text>
+          <text x="204" y="176" text-anchor="middle" class="gauge-scale-text">100%</text>
         </svg>
 
         <div class="gauge-center">
-          <div id="gaugeScore" class="gauge-score" style="color:#10b981">0%</div>
-          <div class="gauge-label">Risk Score</div>
+          <div class="gauge-score-wrap">
+            <span id="gaugeScore" class="gauge-score">0</span>
+            <span class="gauge-percent">%</span>
+          </div>
+          <div class="gauge-label">Risk Probability</div>
         </div>
       </div>
 
-      <div id="gaugeStatus" class="gauge-status safe">SAFE</div>
+      <div id="gaugeStatus" class="gauge-status safe">
+        <span class="status-pulse-dot"></span>
+        <span id="gaugeStatusText">SAFE</span>
+      </div>
     </div>
 
     <!-- Stat Cards -->

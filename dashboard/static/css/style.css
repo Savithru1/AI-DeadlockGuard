@@ -22,29 +22,35 @@
   --log-border:   #21262d;
   --shadow:       0 4px 24px rgba(0,0,0,0.5);
   --shadow-card:  0 2px 8px rgba(0,0,0,0.4);
-  --chart-grid:   rgba(255,255,255,0.06);
-  --scrollbar:    #30363d;
+  --chart-grid:       rgba(255,255,255,0.06);
+  --scrollbar:        #30363d;
+  --gauge-track:      #21262d;
+  --gauge-ticks:      #30363d;
+  --gauge-scale-text: #6e7681;
 }
 
 [data-theme="light"] {
-  --bg:           #f6f8fa;
-  --bg-secondary: #eef0f3;
-  --card:         #ffffff;
-  --card-hover:   #f0f4f8;
-  --border:       #d0d7de;
-  --text:         #1f2328;
-  --text-muted:   #636c76;
-  --accent:       #059669;
-  --accent-glow:  rgba(5, 150, 105, 0.15);
-  --warn:         #d97706;
-  --danger:       #dc2626;
-  --danger-glow:  rgba(220, 38, 38, 0.15);
-  --log-bg:       #f0f2f4;
-  --log-border:   #d0d7de;
-  --shadow:       0 4px 24px rgba(0,0,0,0.08);
-  --shadow-card:  0 2px 8px rgba(0,0,0,0.06);
-  --chart-grid:   rgba(0,0,0,0.06);
-  --scrollbar:    #c8cdd3;
+  --bg:               #f6f8fa;
+  --bg-secondary:     #eef0f3;
+  --card:             #ffffff;
+  --card-hover:       #f0f4f8;
+  --border:           #d0d7de;
+  --text:             #1f2328;
+  --text-muted:       #636c76;
+  --accent:           #059669;
+  --accent-glow:      rgba(5, 150, 105, 0.15);
+  --warn:             #d97706;
+  --danger:           #dc2626;
+  --danger-glow:      rgba(220, 38, 38, 0.15);
+  --log-bg:           #f0f2f4;
+  --log-border:       #d0d7de;
+  --shadow:           0 4px 24px rgba(0,0,0,0.08);
+  --shadow-card:      0 2px 8px rgba(0,0,0,0.06);
+  --chart-grid:       rgba(0,0,0,0.06);
+  --scrollbar:        #c8cdd3;
+  --gauge-track:      #e5e7eb;
+  --gauge-ticks:      #d1d5db;
+  --gauge-scale-text: #9ca3af;
 }
 
 /* ── Reset & Base ────────────────────────────────────────────────────────── */
@@ -243,76 +249,171 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 1.5rem 1.25rem;
+  padding: 1.35rem 1.25rem;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  margin-bottom: 0.25rem;
+}
+
+.gauge-model-tag {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: var(--bg-secondary);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  text-transform: uppercase;
 }
 
 .gauge-wrapper {
   position: relative;
-  width: 220px;
-  height: 220px;
-  margin: 0.5rem auto;
+  width: 250px;
+  height: 200px;
+  margin: 0.35rem auto 0;
 }
 
 .gauge-svg {
   width: 100%;
   height: 100%;
-  transform: rotate(-90deg);
+  overflow: visible;
 }
 
-.gauge-bg {
+.gauge-track {
   fill: none;
-  stroke: var(--border);
-  stroke-width: 14;
+  stroke: var(--gauge-track);
+  stroke-width: 13;
+  stroke-linecap: round;
+  transition: stroke 0.3s ease;
+}
+
+.gauge-ticks {
+  fill: none;
+  stroke: var(--gauge-ticks);
+  stroke-width: 2;
+  stroke-dasharray: 2 6;
   transition: stroke 0.3s ease;
 }
 
 .gauge-arc {
   fill: none;
-  stroke-width: 14;
+  stroke-width: 13;
   stroke-linecap: round;
-  transition: stroke-dashoffset 0.6s cubic-bezier(0.4,0,0.2,1),
-              stroke 0.4s ease;
+  stroke: var(--accent);
+  transition: stroke-dashoffset 0.45s cubic-bezier(0.4, 0, 0.2, 1),
+              stroke 0.35s ease,
+              filter 0.35s ease;
+}
+
+.gauge-needle {
+  fill: #ffffff;
+  stroke-width: 2.5;
+  stroke: var(--accent);
+  transition: cx 0.45s cubic-bezier(0.4, 0, 0.2, 1),
+              cy 0.45s cubic-bezier(0.4, 0, 0.2, 1),
+              stroke 0.35s ease;
+  filter: drop-shadow(0 0 4px rgba(0,0,0,0.4));
+}
+
+.gauge-scale-text {
+  font-size: 10px;
+  font-weight: 600;
+  fill: var(--gauge-scale-text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  user-select: none;
+  transition: fill 0.3s ease;
 }
 
 .gauge-center {
   position: absolute;
-  top: 50%;
+  top: 92px;
   left: 50%;
-  transform: translate(-50%, -50%);
+  transform: translateX(-50%);
   text-align: center;
+  width: 170px;
+  pointer-events: none;
+}
+
+.gauge-score-wrap {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  line-height: 1;
 }
 
 .gauge-score {
-  font-size: 2.8rem;
+  font-size: 3.2rem;
   font-weight: 800;
   letter-spacing: -0.04em;
-  line-height: 1;
-  transition: color 0.4s ease;
+  color: var(--accent);
+  transition: color 0.35s ease;
+  font-variant-numeric: tabular-nums;
+}
+
+.gauge-percent {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin-left: 2px;
+  color: var(--accent);
+  opacity: 0.85;
+  transition: color 0.35s ease;
 }
 
 .gauge-label {
   font-size: 0.65rem;
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--text-muted);
-  margin-top: 0.25rem;
+  margin-top: 4px;
 }
 
 .gauge-status {
-  font-size: 0.85rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.78rem;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  margin-top: 0.75rem;
-  padding: 0.3rem 1rem;
+  margin-top: 0.5rem;
+  padding: 0.32rem 1.1rem;
   border-radius: 20px;
   transition: all 0.3s ease;
 }
 
-.gauge-status.safe    { color: var(--accent); background: var(--accent-glow); }
-.gauge-status.warning { color: var(--warn); background: rgba(245,158,11,0.12); }
-.gauge-status.danger  { color: var(--danger); background: var(--danger-glow); animation: pulse-danger 1s infinite; }
+.status-pulse-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  display: inline-block;
+}
+
+.gauge-status.safe {
+  color: var(--accent);
+  background: var(--accent-glow);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.gauge-status.warning {
+  color: var(--warn);
+  background: rgba(245, 158, 11, 0.14);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+}
+
+.gauge-status.danger {
+  color: var(--danger);
+  background: var(--danger-glow);
+  border: 1px solid rgba(239, 68, 68, 0.45);
+  animation: pulse-danger 1s infinite;
+}
 
 /* ── Stat Cards Grid ─────────────────────────────────────────────────────── */
 .stats-grid {
