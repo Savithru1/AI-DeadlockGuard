@@ -2,8 +2,8 @@ import unittest
 import sys
 import os
 
-# Add scripts directory to sys.path to import offline_cycle_check
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'scripts')))
+# offline_cycle_check.py lives next to this test
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from offline_cycle_check import WaitForGraph, parse_log_file
 
 class TestCycleDetector(unittest.TestCase):

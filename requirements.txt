@@ -1,0 +1,10 @@
+# Website
+flask
+
+# AI model — scikit-learn/xgboost pinned to the versions that produced
+# predictor/models/deadlock_predictor.pkl (pickles are version-sensitive)
+scikit-learn==1.8.0
+xgboost==3.1.3
+pandas
+numpy
+joblib

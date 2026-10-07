@@ -3,8 +3,7 @@
 *.a
 *.so
 *.exe
-harness/build/
-monitor/build/
+deadlock_guard
 
 # ML models and data
 predictor/data/raw_runs/*
@@ -13,10 +12,10 @@ predictor/data/training_data.csv
 predictor/models/*.pkl
 !predictor/models/.gitkeep
 
-# Runtime status and logs
-status/*.json
-!status/.gitkeep
+# Runtime logs
 logs/*.log
+logs/*.csv
+status/
 !logs/.gitkeep
 
 # Python

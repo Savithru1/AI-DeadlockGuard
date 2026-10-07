@@ -1,0 +1,6 @@
+# Files executed inside WSL/Linux must keep LF endings even with core.autocrlf
+*.sh     text eol=lf
+*.py     text eol=lf
+*.c      text eol=lf
+*.h      text eol=lf
+Makefile text eol=lf

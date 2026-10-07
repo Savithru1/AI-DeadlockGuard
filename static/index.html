@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI-DeadlockGuard — Live Monitor</title>
+  <link rel="stylesheet" href="/static/style.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔒</text></svg>" />
+</head>
+<body>
+
+<!-- ── Deadlock Alert Banner ─────────────────────────────────────────────── -->
+<div id="deadlockBanner">
+  <span>⚠️</span>
+  <span id="bannerText">DEADLOCK DETECTED</span>
+</div>
+
+<!-- ── Navbar ─────────────────────────────────────────────────────────────── -->
+<nav class="navbar">
+  <a class="navbar-brand" href="#">
+    <div class="brand-icon">🛡️</div>
+    <span>AI-DeadlockGuard</span>
+  </a>
+
+  <div class="navbar-right">
+    <div class="theme-toggle" role="group" aria-label="Theme selector">
+      <button class="theme-btn" data-theme="light" aria-label="Light mode">☀️</button>
+      <button class="theme-btn active" data-theme="dark" aria-label="Dark mode">🌙</button>
+    </div>
+
+    <div id="statusBadge" class="status-badge stopped">
+      <span class="status-dot"></span>
+      <span class="status-text">CONNECTING…</span>
+    </div>
+  </div>
+</nav>
+
+<!-- ── Offline notice ─────────────────────────────────────────────────────── -->
+<div id="offlineNotice" class="offline-notice" hidden>
+  <strong>Backend not running.</strong>
+  <span id="offlineText">Start the C program in WSL: <code>./deadlock_guard</code></span>
+</div>
+
+<!-- ── Main Layout ────────────────────────────────────────────────────────── -->
+<div class="main-layout">
+
+  <!-- ── LEFT PANEL ──────────────────────────────────────────────────────── -->
+  <aside class="left-panel">
+
+    <!-- Risk Gauge Card -->
+    <div class="card gauge-card">
+      <div class="card-header">
+        <div class="card-title">AI Deadlock Risk</div>
+        <div class="gauge-model-tag">Ensemble RF+SVM+XGB</div>
+      </div>
+
+      <div class="gauge-wrapper">
+        <svg class="gauge-svg" viewBox="0 0 240 190" xmlns="http://www.w3.org/2000/svg">
+          <path class="gauge-track" d="M 48.99 156 A 82 82 0 1 1 191.01 156" />
+          <path class="gauge-ticks" d="M 61.11 149 A 68 68 0 1 1 178.89 149" />
+          <path id="gaugeArc" class="gauge-arc"
+            d="M 48.99 156 A 82 82 0 1 1 191.01 156"
+            pathLength="100"
+            stroke-dasharray="100"
+            stroke-dashoffset="100" />
+          <circle id="gaugeNeedle" class="gauge-needle" cx="48.99" cy="156" r="5.5" />
+          <text x="36" y="176" text-anchor="middle" class="gauge-scale-text">0%</text>
+          <text x="120" y="24" text-anchor="middle" class="gauge-scale-text">50%</text>
+          <text x="204" y="176" text-anchor="middle" class="gauge-scale-text">100%</text>
+        </svg>
+
+        <div class="gauge-center">
+          <div class="gauge-score-wrap">
+            <span id="gaugeScore" class="gauge-score">0</span>
+            <span class="gauge-percent">%</span>
+          </div>
+          <div class="gauge-label">Risk Probability</div>
+        </div>
+      </div>
+
+      <div id="gaugeStatus" class="gauge-status off">
+        <span class="status-pulse-dot"></span>
+        <span id="gaugeStatusText">AI OFF</span>
+      </div>
+      <div id="aiModelLine" class="ai-model-line">AI model: connecting…</div>
+    </div>
+
+    <!-- Stat Cards -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">Blocked Procs</div>
+        <div id="valBlocked" class="stat-value highlight">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Edge Count</div>
+        <div id="valEdges" class="stat-value highlight">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Wait Growth</div>
+        <div id="valGrowth" class="stat-value highlight">0.000</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Graph Density</div>
+        <div id="valDensity" class="stat-value highlight">0.00000</div>
+      </div>
+    </div>
+
+    <!-- Run Controls Card -->
+    <div class="card action-card">
+      <div class="card-header" style="margin-bottom: 0.4rem;">
+        <div class="card-title" style="margin-bottom:0">Run Controls</div>
+      </div>
+      <p class="controls-hint">Runs execute in the WSL backend and are shown in its terminal too.</p>
+
+      <div class="action-buttons">
+        <button id="runBaselineBtn" class="freeze-btn" data-mode="baseline"
+                title="5 philosopher processes, monitor observes only — the deadlock forms and stays frozen">
+          <span>🔒</span><span>Run WITHOUT AI</span>
+        </button>
+        <button id="runAiBtn" class="ai-btn" data-mode="ai"
+                title="Same run, but the AI model scores risk live and the resolver kills one victim before the cycle closes">
+          <span>🤖</span><span>Run WITH AI</span>
+        </button>
+        <button id="runCompareBtn" class="compare-btn" data-mode="compare"
+                title="Run without AI, then with AI, and compare">
+          <span>⚖️</span><span>Compare Both</span>
+        </button>
+        <button id="resolveBtn" class="resolve-btn"
+                title="Manual override: SIGKILL one victim in the current run">
+          <span>⚡</span><span>Resolve Deadlock (manual)</span>
+        </button>
+      </div>
+      <div id="actionFeedback" class="resolve-feedback"></div>
+    </div>
+
+  </aside>
+
+  <!-- ── RIGHT PANEL ─────────────────────────────────────────────────────── -->
+  <section class="right-panel">
+
+    <!-- Current Run + Processes -->
+    <div class="card run-card">
+      <div class="chart-header">
+        <div class="card-title" style="margin-bottom:0">Current Run</div>
+        <div id="runSummary" class="run-summary">No run yet</div>
+      </div>
+      <div id="procGrid" class="proc-grid"></div>
+      <div id="cycleLine" class="cycle-line" hidden></div>
+    </div>
+
+    <!-- Risk Chart -->
+    <div class="card chart-card">
+      <div class="chart-header">
+        <div class="card-title" style="margin-bottom:0">Risk Score Over the Run</div>
+        <div class="chart-legend">
+          <div class="legend-item"><div class="legend-dot" style="background:#10b981"></div>Safe</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div>Rising</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#ef4444"></div>Act</div>
+          <div class="legend-item"><div class="legend-line"></div>Threshold</div>
+        </div>
+      </div>
+      <canvas id="riskCanvas"></canvas>
+    </div>
+
+    <!-- Comparison -->
+    <div class="card compare-card">
+      <div class="card-title">Without AI vs With AI</div>
+      <table class="compare-table">
+        <thead>
+          <tr><th></th><th class="col-base">Without AI</th><th class="col-ai">With AI</th></tr>
+        </thead>
+        <tbody id="compareRows">
+          <tr><td colspan="3" class="muted">No completed runs yet.</td></tr>
+        </tbody>
+      </table>
+      <div id="compareNote" class="compare-note"></div>
+    </div>
+
+    <!-- Live Event Log -->
+    <div class="card log-card">
+      <div class="card-title">Live Event Log <span class="muted">· same timeline as the WSL terminal</span></div>
+      <div id="logTerminal" class="log-terminal">
+        <div class="empty-log">Waiting for backend events…</div>
+      </div>
+    </div>
+
+  </section>
+</div>
+
+<script src="/static/script.js"></script>
+</body>
+</html>
